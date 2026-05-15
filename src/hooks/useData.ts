@@ -32,7 +32,7 @@ export function useData() {
         supabase.from('classes').select('*').eq('user_id', user.id),
         supabase.from('students').select('*, classes(name)').eq('user_id', user.id),
         supabase.from('attendance').select('*').eq('user_id', user.id),
-        supabase.from('payments').select('*, students(name), classes(name)').eq('user_id', user.id),
+        supabase.from('payments').select('*, students(name, parentName, parentPhone), classes(name)').eq('user_id', user.id),
         supabase.from('messages').select('*').eq('user_id', user.id).order('sent_at', { ascending: false })
       ]);
 

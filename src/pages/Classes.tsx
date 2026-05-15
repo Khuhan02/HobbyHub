@@ -3,12 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { useData } from '../hooks/useData';
 import { CLASSES, STUDENTS } from '../constants';
 import { supabase } from '../lib/supabase';
+import { analyzeAttendance, AttendanceInsight, AttendanceStats, generateCancellationNotice } from '../services/geminiService';
 
 export function Classes() {
   const { t, user } = useApp();
@@ -16,6 +17,153 @@ export function Classes() {
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isAnalysing, setIsAnalysing] = useState(false);
+  const [insights, setInsights] = useState<AttendanceInsight[] | null>(null);
+
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('Teacher unwell');
+  const [cancelNote, setCancelNote] = useState('');
+  const [generatedNotice, setGeneratedNotice] = useState<string | null>(null);
+  const [isGeneratingNotice, setIsGeneratingNotice] = useState(false);
+
+  useEffect(() => {
+    setInsights(null);
+    setGeneratedNotice(null);
+  }, [selectedClass]);
+
+  const handleGenerateNotice = async () => {
+    if (!selectedClass) return;
+    setIsGeneratingNotice(true);
+    
+    const currentClass = displayClasses.find(c => c.id === selectedClass);
+    const businessPhone = "+603-1234 5678"; 
+    
+    try {
+      const notice = await generateCancellationNotice({
+        className: currentClass?.name || 'Class',
+        date: 'next session', 
+        time: currentClass?.time || 'Scheduled time',
+        reason: cancelReason,
+        note: cancelNote,
+        businessPhone
+      });
+      setGeneratedNotice(notice);
+    } catch (error) {
+      alert('Failed to generate notice: ' + error);
+    } finally {
+      setIsGeneratingNotice(false);
+    }
+  };
+
+  const handleSendNoticeToAll = () => {
+    if (!generatedNotice) return;
+    
+    const parents = classStudents
+      .map(s => (s as any).parentPhone || (s as any).parent_phone)
+      .filter(Boolean);
+      
+    if (parents.length === 0) {
+      alert('No parent contact numbers found for this class.');
+      return;
+    }
+
+    const encodedMessage = encodeURIComponent(generatedNotice);
+    
+    parents.forEach((phone, index) => {
+      setTimeout(() => {
+        const formattedPhone = `60${phone.replace(/^0/, '')}`;
+        window.open(`https://wa.me/${formattedPhone}?text=${encodedMessage}`, '_blank');
+      }, index * 1500); 
+    });
+    
+    setShowCancelModal(false);
+    setGeneratedNotice(null);
+  };
+
+  const handleAnalyseAttendance = async () => {
+    if (!selectedClass || !user) return;
+    setIsAnalysing(true);
+
+    try {
+      // 1. Check cache first (ignore for now if table might not exist, but let's try)
+      const yesterday = new Date();
+      yesterday.setHours(yesterday.getHours() - 24);
+      
+      const { data: cached } = await supabase
+        .from('class_insights')
+        .select('*')
+        .eq('class_id', selectedClass)
+        .gt('created_at', yesterday.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (cached && cached.length > 0) {
+        setInsights(cached[0].insights as AttendanceInsight[]);
+        setIsAnalysing(false);
+        return;
+      }
+
+      // 2. Fetch 60 days of attendance
+      const sixtyDaysAgo = new Date();
+      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+      const { data: attData } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('class_id', selectedClass)
+        .gte('date', sixtyDaysAgo.toISOString().split('T')[0]);
+
+      if (!attData || attData.length === 0) {
+        alert('Not enough attendance data for analysis.');
+        setIsAnalysing(false);
+        return;
+      }
+
+      // 3. Process stats
+      const stats: AttendanceStats[] = classStudents.map(student => {
+        const studentAtt = attData.filter(a => ((a as any).student_id || (a as any).studentId) === student.id);
+        const presentCount = studentAtt.filter(a => a.status === 'present').length;
+        const totalSessions = studentAtt.length;
+        const rate = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 0;
+
+        const sorted = [...studentAtt].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        let currentStreak = 0;
+        let maxStreak = 0;
+        for (const record of sorted) {
+          if (record.status === 'absent') {
+            currentStreak++;
+            maxStreak = Math.max(maxStreak, currentStreak);
+          } else {
+            currentStreak = 0;
+          }
+        }
+
+        return {
+          studentName: student.name,
+          attendanceRate: rate,
+          longestAbsenceStreak: maxStreak
+        };
+      });
+
+      // 4. Call Gemini
+      const className = displayClasses.find(c => c.id === selectedClass)?.name || 'Class';
+      const result = await analyzeAttendance(className, stats);
+      setInsights(result.slice(0, 3)); // Only 3 students as per prompt
+
+      // 5. Cache result
+      await supabase.from('class_insights').insert([{
+        user_id: user.id,
+        class_id: selectedClass,
+        insights: result.slice(0, 3),
+        created_at: new Date().toISOString()
+      }]);
+
+    } catch (error) {
+      console.error('Analysis error:', error);
+    } finally {
+      setIsAnalysing(false);
+    }
+  };
 
   const getStudentStreak = (studentId: string, classId: string) => {
     const studentAttendance = attendance
@@ -202,7 +350,28 @@ export function Classes() {
                 <h3 className="text-[10px] font-black text-neutral-400 uppercase tracking-[0.2em]">
                   {t('classes.attendance')}
                 </h3>
-                <span className="material-symbols-outlined text-primary text-xl">tune</span>
+                <div className="flex items-center gap-4">
+                  <button 
+                    onClick={handleAnalyseAttendance}
+                    disabled={isAnalysing}
+                    className="text-[9px] font-black text-primary uppercase tracking-widest hover:underline disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {isAnalysing ? (
+                      <span className="w-2 h-2 border border-primary border-t-transparent rounded-full animate-spin"></span>
+                    ) : (
+                      <span className="material-symbols-outlined text-[10px]">auto_awesome</span>
+                    )}
+                    Analyse Patterns
+                  </button>
+                  <button 
+                    onClick={() => setShowCancelModal(true)}
+                    className="text-[9px] font-black text-rose-500 uppercase tracking-widest hover:underline flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-[10px]">cancel</span>
+                    Cancel Class
+                  </button>
+                  <span className="material-symbols-outlined text-primary text-xl">tune</span>
+                </div>
               </div>
               <div className="divide-y divide-neutral-100">
                 {classStudents.map((student) => {
@@ -236,7 +405,135 @@ export function Classes() {
                 })}
               </div>
             </div>
+
+            {insights && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-6"
+              >
+                <div className="flex justify-between items-center">
+                  <h4 className="text-[10px] font-black text-neutral-400 uppercase tracking-[0.2em] flex items-center gap-3">
+                    <span className="material-symbols-outlined text-primary text-xl">auto_awesome</span>
+                    Attendance Insights
+                  </h4>
+                  <span className="text-[9px] font-mono font-bold text-neutral-200">GEMINI_ANALYTICS</span>
+                </div>
+                <div className="space-y-4">
+                  {insights.map((insight, idx) => (
+                    <div key={idx} className="flex gap-4 p-4 rounded-2xl bg-neutral-50/50 border border-neutral-100">
+                      <div className={`w-1 h-auto rounded-full ${insight.riskLevel === 'high' ? 'bg-red-500' : 'bg-amber-500'}`}></div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-2">
+                          <p className="text-sm font-bold text-neutral-900 italic">{insight.studentName}</p>
+                          <span className={`text-[8px] font-black uppercase tracking-[0.1em] px-2 py-0.5 rounded-md border ${
+                            insight.riskLevel === 'high' ? 'bg-red-50 border-red-100 text-red-500' : 'bg-amber-50 border-amber-100 text-amber-500'
+                          }`}>
+                            {insight.riskLevel}_risk
+                          </span>
+                        </div>
+                        <p className="text-xs text-neutral-500 leading-relaxed italic">
+                          {insight.suggestedAction}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showCancelModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-neutral-900/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white border border-neutral-100 w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl"
+            >
+              <div className="p-8 border-b border-neutral-50 bg-neutral-50/50 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-rose-500 text-2xl">event_busy</span>
+                  <h3 className="text-xl font-bold text-neutral-900 italic">Cancel Notice</h3>
+                </div>
+                <button onClick={() => { setShowCancelModal(false); setGeneratedNotice(null); }} className="text-neutral-400 hover:text-neutral-600 transition-colors">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <div className="p-8 space-y-6">
+                {!generatedNotice ? (
+                  <>
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-mono font-black text-neutral-400 uppercase tracking-widest block ml-1">Reason for Cancellation</label>
+                       <select 
+                         value={cancelReason}
+                         onChange={(e) => setCancelReason(e.target.value)}
+                         className="w-full bg-neutral-50 border border-neutral-100 rounded-xl p-4 text-sm font-bold text-neutral-800 focus:border-primary outline-none appearance-none"
+                       >
+                         <option>Teacher unwell</option>
+                         <option>Public holiday</option>
+                         <option>Venue issue</option>
+                         <option>Other</option>
+                       </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-mono font-black text-neutral-400 uppercase tracking-widest block ml-1">Additional Note (Optional)</label>
+                      <textarea 
+                        value={cancelNote}
+                        onChange={(e) => setCancelNote(e.target.value)}
+                        placeholder="e.g. Rescheduling to next Tuesday..."
+                        className="w-full bg-neutral-50 border border-neutral-100 rounded-xl p-4 text-sm font-medium text-neutral-800 focus:border-primary outline-none h-24 resize-none shadow-inner"
+                      />
+                    </div>
+
+                    <button 
+                      onClick={handleGenerateNotice}
+                      disabled={isGeneratingNotice}
+                      className="w-full bg-neutral-900 text-white h-14 rounded-2xl flex items-center justify-center gap-3 font-black text-[10px] uppercase tracking-[0.2em] shadow-lg hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
+                    >
+                      {isGeneratingNotice ? (
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      ) : (
+                        <span className="material-symbols-outlined text-xl">auto_awesome</span>
+                      )}
+                      Generate Notice
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-mono font-black text-neutral-400 uppercase tracking-widest block ml-1">Generated Message</label>
+                      <textarea 
+                        value={generatedNotice}
+                        onChange={(e) => setGeneratedNotice(e.target.value)}
+                        className="w-full bg-neutral-50 border border-neutral-100 rounded-xl p-6 text-sm text-neutral-700 leading-relaxed font-medium italic h-48 resize-none focus:border-primary outline-none shadow-inner"
+                      />
+                    </div>
+
+                    <button 
+                      onClick={handleSendNoticeToAll}
+                      className="w-full bg-[#25D366] text-white h-14 rounded-2xl flex items-center justify-center gap-3 font-black text-[10px] uppercase tracking-[0.2em] shadow-lg hover:brightness-110 active:scale-95 transition-all"
+                    >
+                      <span className="material-symbols-outlined text-xl">send_all</span>
+                      Send to All Parents
+                    </button>
+                    
+                    <button 
+                      onClick={() => setGeneratedNotice(null)}
+                      className="w-full text-neutral-400 font-black text-[9px] uppercase tracking-widest hover:text-neutral-600 transition-all"
+                    >
+                      Re-configure
+                    </button>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

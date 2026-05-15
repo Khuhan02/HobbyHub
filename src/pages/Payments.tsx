@@ -10,10 +10,15 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useData } from '../hooks/useData';
 import { supabase } from '../lib/supabase';
 
+import { generatePaymentReminder } from '../services/geminiService';
+
 export function Payments() {
   const { t, user } = useApp();
   const { payments: realPayments, loading, refresh } = useData();
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState<string | null>(null);
+  const [reminderMessage, setReminderMessage] = useState<string | null>(null);
+  const [selectedTx, setSelectedTx] = useState<any>(null);
 
   const handleMarkAsPaid = async (paymentId: string) => {
     if (!user) return;
@@ -36,15 +41,46 @@ export function Payments() {
     setIsUpdating(null);
   };
 
+  const handleGenerateReminder = async (tx: any) => {
+    setIsGenerating(tx.id);
+    setSelectedTx(tx);
+    
+    try {
+      const message = await generatePaymentReminder({
+        studentName: tx.studentName,
+        parentName: tx.parentName,
+        amount: tx.amountRaw.toString(),
+        dueDate: tx.date,
+        className: tx.className
+      });
+      setReminderMessage(message);
+    } catch (error) {
+      alert('Failed to generate reminder: ' + error);
+    } finally {
+      setIsGenerating(null);
+    }
+  };
+
   const displayTransactions = realPayments.length > 0 ? realPayments.map(p => ({
     id: p.id,
     studentName: (p as any).students?.name || 'Unknown Subject',
+    parentName: (p as any).students?.parentName || (p as any).students?.parent_name || 'Guardian',
+    parentPhone: (p as any).students?.parentPhone || (p as any).students?.parent_phone || '',
+    className: (p as any).classes?.name || 'Class',
     date: p.paidDate || p.dueDate,
     method: p.method?.toUpperCase() || 'N/A',
     amount: `RM${p.amount}`,
+    amountRaw: p.amount,
     status: p.status === 'paid' ? 'Paid' : p.status === 'overdue' ? 'Overdue' : 'Pending',
     rawStatus: p.status
-  })) : TRANSACTIONS.map(tx => ({ ...tx, rawStatus: tx.status.toLowerCase() }));
+  })) : TRANSACTIONS.map(tx => ({ 
+    ...tx, 
+    rawStatus: tx.status.toLowerCase(),
+    parentName: 'Guardian',
+    parentPhone: '60123456789',
+    className: 'Class',
+    amountRaw: parseInt(tx.amount.replace('RM', ''))
+  }));
 
   const totalRevenue = realPayments
     .filter(p => p.status === 'paid')
@@ -142,13 +178,29 @@ export function Payments() {
                     {tx.status}
                   </div>
                   {tx.rawStatus !== 'paid' && (
-                    <button 
-                      onClick={() => handleMarkAsPaid(tx.id)}
-                      disabled={isUpdating === tx.id}
-                      className="text-[9px] font-black text-primary uppercase tracking-widest hover:underline disabled:opacity-50"
-                    >
-                      {isUpdating === tx.id ? 'Updating...' : 'Mark Paid'}
-                    </button>
+                    <div className="flex flex-col items-end gap-2">
+                      <button 
+                        onClick={() => handleMarkAsPaid(tx.id)}
+                        disabled={isUpdating === tx.id}
+                        className="text-[9px] font-black text-secondary uppercase tracking-widest hover:underline disabled:opacity-50"
+                      >
+                        {isUpdating === tx.id ? 'Updating...' : 'Mark Paid'}
+                      </button>
+                      {tx.rawStatus === 'overdue' && (
+                        <button 
+                          onClick={() => handleGenerateReminder(tx)}
+                          disabled={isGenerating === tx.id}
+                          className="text-[9px] font-black text-primary uppercase tracking-widest hover:underline disabled:opacity-50 flex items-center gap-1"
+                        >
+                          {isGenerating === tx.id ? (
+                            <span className="w-2 h-2 border border-primary border-t-transparent rounded-full animate-spin"></span>
+                          ) : (
+                            <span className="material-symbols-outlined text-[10px]">auto_awesome</span>
+                          )}
+                          Send Reminder
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -163,6 +215,64 @@ export function Payments() {
           </button>
         </div>
       </section>
+
+      <AnimatePresence>
+        {reminderMessage && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-neutral-900/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white border border-neutral-100 w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl"
+            >
+              <div className="p-8 border-b border-neutral-50 bg-neutral-50/50 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-primary text-2xl">auto_awesome</span>
+                  <h3 className="text-xl font-bold text-neutral-900 italic">Fee Reminder</h3>
+                </div>
+                <button onClick={() => setReminderMessage(null)} className="text-neutral-400 hover:text-neutral-600 transition-colors">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <div className="p-8 space-y-6">
+                <div className="space-y-4">
+                  <label className="text-[10px] font-mono font-black text-neutral-400 uppercase tracking-widest block ml-1">Generated Message</label>
+                  <textarea 
+                    value={reminderMessage}
+                    onChange={(e) => setReminderMessage(e.target.value)}
+                    className="w-full bg-neutral-50 border border-neutral-100 rounded-2xl p-6 text-sm text-neutral-700 leading-relaxed font-medium italic h-48 resize-none focus:border-primary outline-none shadow-inner"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(reminderMessage);
+                      alert('Copied to clipboard');
+                    }}
+                    className="h-14 rounded-2xl border border-neutral-100 text-neutral-400 font-black text-[10px] uppercase tracking-widest hover:bg-neutral-50 transition-all flex items-center justify-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-lg">content_copy</span>
+                    Copy
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const phone = selectedTx?.parentPhone;
+                      const formattedPhone = `60${phone.replace(/^0/, '')}`;
+                      window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(reminderMessage)}`, '_blank');
+                    }}
+                    className="h-14 rounded-2xl bg-[#25D366] text-white font-black text-[10px] uppercase tracking-widest hover:brightness-110 transition-all flex items-center justify-center gap-2 shadow-md"
+                  >
+                    <span className="material-symbols-outlined text-lg">chat</span>
+                    WhatsApp
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
