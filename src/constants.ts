@@ -1,0 +1,151 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { ClassSession, Student, MessageTemplate, Transaction, ClassType } from './types';
+
+export const CLASSES: ClassSession[] = [
+  {
+    id: '1',
+    name: 'Creative Art Jr',
+    type: 'ART',
+    time: 'Sat, 10:00 AM',
+    duration: '60 MIN',
+    teacher: 'Cikgu Sarah',
+    fee: 'RM180/term',
+    enrollment: '12/15',
+    maxEnrollment: 15,
+    status: 'Active',
+    location: 'Studio A',
+  },
+  {
+    id: '2',
+    name: 'Intro to Piano',
+    type: 'MUSIC',
+    time: 'Sat, 3:30 PM',
+    duration: '45 MIN',
+    teacher: 'Teacher Sarah',
+    fee: 'RM200/term',
+    enrollment: '8/10',
+    maxEnrollment: 10,
+    status: 'Active',
+    location: 'Studio B',
+  },
+  {
+    id: '3',
+    name: 'Robotics 101',
+    type: 'ROBOTICS',
+    time: 'Sun, 2:00 PM',
+    duration: '90 MIN',
+    teacher: 'Mr. Tan',
+    fee: 'RM250/term',
+    enrollment: '14/15',
+    maxEnrollment: 15,
+    status: 'Limited',
+    location: 'Lab 1',
+  },
+];
+
+export const STUDENTS: Student[] = [
+  {
+    id: '10294',
+    name: 'Adam Haris',
+    className: 'Robotics Level 1',
+    guardian: 'Zainab Ali',
+    attendanceRate: 92,
+    paymentStatus: 'Paid',
+    category: 'ROBOTICS',
+    photoUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCY9PA8VVviUn8-PpmGmin_3IE2JErO5vNqc9mDBCG9U9BMVA-fD5Micy0_Ial__TyXLXoTfjebKexEZ1z7YwsELs3CrSbAEbVOV6LjrSYX92v0QzsIFNXWN5tyKPEZ6VVSjZgvFCmfymlnFFGiHR90tIb9HXCecNgWImB0FHxbZMxKAeTe89YbQwPU1heNHj4JhPElP3AGdJENm_m4az1_38VGM4m2Eichso1XUmXEFzk8y5qHkYaOwyDpeXWHwAI2xK8dTY3oA3k',
+  },
+  {
+    id: '10301',
+    name: 'Laila Yusof',
+    className: 'Creative Art Jr',
+    guardian: 'Idris Khan',
+    attendanceRate: 100,
+    paymentStatus: 'Paid',
+    category: 'ART',
+    photoUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD0Th8j5F7Td7k29WXW3X_IjDmYXFcZIpmZybvfoBBD9-2HJbYZWcz-jHLwB1QZ6SGRR_kROeVmjqBWU1ISydfVEi26v6JeS64mWCePxiJjoz-CYN8ZVtTOApxih6URhR4LOwSxozlJ_hYJOgbzZDVVsbxQNeMEr3zny6SLW-UniiNW93tHzNiT9WF-ynef56de8tZwKg_EJuc9jZA9VMV4SdPGSt3drq6-6D3iisqTU7rompz_fo-pory3qLE4BxWSB0L4L1_HPqY',
+  },
+  {
+    id: '10305',
+    name: 'Jun Kai',
+    className: 'Robotics Level 1',
+    guardian: 'Mei Ling',
+    attendanceRate: 60,
+    paymentStatus: 'Overdue',
+    category: 'ROBOTICS',
+    photoUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDNNUSTGj8lEAUKSNXCTpGRP6CCNfDzO5g8uIEMzOyjRTyuK9MDO7CSFSFDbxVNJmTOtWSnp2-UEdnaLjaGFjLbMXxWIshmyvn1DpvzqVKFnhZ-mp5u9YaeChXEwv2zzKBS8EJs680190VdfqUOwG7HRAWC-oDjleeorHdLnLa7JljNYtyip8QsmwK6OloQlXysU1K9i4Y-ipSFrpVvTqpyjgEs8cIGUdwYAjvQcIb1mK29jQS8Mu3vIBS-ujRZgHpwnBKq2gr8y3Q',
+  },
+  {
+    id: '10309',
+    name: 'Maya Sofia',
+    className: 'Robotics Level 1',
+    guardian: 'Idris Khan',
+    attendanceRate: 88,
+    paymentStatus: 'Overdue',
+    category: 'ROBOTICS',
+    photoUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC8yRktM4ZRZw8BF-nJE_hGaLdDGJaf1XwuONyJIGAF-JgA6HkKTgsq7TPD3fFwDfSKhnTOvk51x8ywoijV8GvJAqfm1aTHO9sacsh9X1irn4OrhsxVYCoptPjpnHwFCSkeHOKK780JUt5f_QIsQRq9HX0Ea0mzTe2JwfK139HFAO0CsGU4buLOUZmemD3O6eaQYccO_-acMaie2upK88rLe22WhrIFJQVDwsr0nsEwgGR4HOXttWY_WsKxgptFLghaMhLv8oHWNkI',
+  }
+];
+
+export const TEMPLATES: MessageTemplate[] = [
+  {
+    id: '1',
+    title: 'Attendance Reminder',
+    description: 'Gentle nudge for upcoming weekend classes.',
+    icon: 'calendar_today',
+  },
+  {
+    id: '2',
+    title: 'Fee Due Notice',
+    description: 'Automated monthly payment request.',
+    icon: 'payments',
+  },
+  {
+    id: '3',
+    title: 'Progress Update',
+    description: 'Celebrate milestones with parents.',
+    icon: 'star',
+  },
+];
+
+export const TRANSACTIONS: Transaction[] = [
+  {
+    id: 'T1',
+    studentName: 'Ahmad Zaki',
+    date: 'Oct 12',
+    method: 'Online Transfer',
+    amount: 'RM350',
+    status: 'Paid',
+  },
+  {
+    id: 'T2',
+    studentName: 'Lim Wei Han',
+    date: 'Oct 05',
+    method: 'Cash',
+    amount: 'RM420',
+    status: 'Overdue',
+  },
+  {
+    id: 'T3',
+    studentName: 'Sarah Jane',
+    date: 'Oct 18',
+    method: 'QR Pay',
+    amount: 'RM280',
+    status: 'Pending',
+  },
+  {
+    id: 'T4',
+    studentName: 'Divya Nair',
+    date: 'Oct 14',
+    method: 'Online Transfer',
+    amount: 'RM350',
+    status: 'Paid',
+  },
+];
+
+export const LOGO_URL = 'data:image/png;base64,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';
+
+export const ADMIN_PHOTO_URL = 'https://lh3.googleusercontent.com/aida-public/AB6AXuAjLs118f7Nk7Oi0R6njcQtHZjyPTrIyPGsdJdI7DXZALEETm6d89RM4w_4YErEXxDfs8bp9mN-QJeL4jm_KG4KRUz0Ngxsxunvu31RtLIxqp7SRTQhg_6nL7p6wYlDioSVmg4npIhmjl3SoWogj3Pj6fDm1B8-pLU8FdJAOVx7HobNU7eU0ktS3JuxNGkwjFB7FEM2fA2AyFsfV4OqYCc0BgCBYcxbTpNnwy62_4WrRUVp4YbYoaMl4hFNYE_EoKU3T2xeXr2p4mQ';
