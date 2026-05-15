@@ -8,31 +8,83 @@ export enum Language {
   BM = 'BM',
 }
 
-export type ClassType = 'ART' | 'MUSIC' | 'ROBOTICS' | 'DANCE' | 'SCIENCE';
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  businessName: string;
+  businessType: 'art' | 'coding' | 'music' | 'robotics' | 'sports' | 'other';
+  plan: 'free' | 'pro';
+  city: string;
+  createdAt: string;
+}
 
 export interface ClassSession {
   id: string;
+  userId: string;
   name: string;
-  type: ClassType;
-  time: string;
-  duration: string;
-  teacher: string;
-  fee: string;
-  enrollment: string;
-  maxEnrollment: number;
-  status: 'Active' | 'Limited' | 'Full';
-  location?: string;
+  type: string;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  maxCapacity: number;
+  teacherName: string;
+  termFee: number;
+  enrolledCount: number;
+  isActive: boolean;
 }
 
 export interface Student {
   id: string;
+  userId: string;
   name: string;
-  className: string;
-  guardian: string;
-  attendanceRate: number;
-  paymentStatus: 'Paid' | 'Overdue' | 'Pending';
+  age: number;
   photoUrl: string;
-  category: ClassType;
+  classId: string;
+  parentName: string;
+  parentPhone: string;
+  parentEmail: string;
+  enrolledDate: string;
+  notes: string;
+  // Local UI convenience fields (can be computed)
+  className?: string; 
+  attendanceRate?: number;
+  paymentStatus?: 'Paid' | 'Overdue' | 'Pending';
+}
+
+export interface AttendanceRecord {
+  id: string;
+  userId: string;
+  classId: string;
+  studentId: string;
+  date: string;
+  status: 'present' | 'absent' | 'late';
+  markedAt: string;
+}
+
+export interface PaymentRecord {
+  id: string;
+  userId: string;
+  studentId: string;
+  classId: string;
+  amount: number;
+  dueDate: string;
+  paidDate: string | null;
+  status: 'paid' | 'overdue' | 'pending';
+  method: 'cash' | 'transfer' | 'qr' | null;
+  termLabel: string;
+}
+
+export interface MessageLog {
+  id: string;
+  userId: string;
+  type: 'attendance' | 'payment' | 'progress' | 'cancel';
+  recipientType: 'all' | 'class' | 'individual';
+  recipientId: string;
+  content: string;
+  sentAt: string;
+  channel: 'whatsapp' | 'email';
 }
 
 export interface MessageTemplate {
@@ -50,3 +102,5 @@ export interface Transaction {
   amount: string;
   status: 'Paid' | 'Overdue' | 'Pending';
 }
+
+export type ClassType = 'ART' | 'MUSIC' | 'ROBOTICS' | 'CODING' | 'SPORTS' | 'OTHER';

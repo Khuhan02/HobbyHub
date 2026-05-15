@@ -6,39 +6,39 @@
   --font-heading: "Plus Jakarta Sans", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  --color-background: #0a0a0a;
-  --color-surface: #171717;
-  --color-surface-dim: #0f0f0f;
-  --color-surface-bright: #1f1f1f;
-  --color-surface-container-lowest: #0a0a0a;
-  --color-surface-container-low: #121212;
-  --color-surface-container: #1a1a1a;
-  --color-surface-container-high: #262626;
-  --color-surface-container-highest: #333333;
+  --color-background: #ffffff;
+  --color-surface: #fcfcfc;
+  --color-surface-dim: #f5f5f5;
+  --color-surface-bright: #ffffff;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #fafafa;
+  --color-surface-container: #f0f0f0;
+  --color-surface-container-high: #e5e5e5;
+  --color-surface-container-highest: #d4d4d4;
   
-  --color-on-surface: #f5f5f5;
-  --color-on-surface-variant: #737373;
+  --color-on-surface: #1a1a1a;
+  --color-on-surface-variant: #525252;
   
-  --color-primary: #6366f1;
+  --color-primary: #6B3FA0;
   --color-on-primary: #ffffff;
-  --color-primary-container: rgba(99, 102, 241, 0.1);
-  --color-on-primary-container: #818cf8;
+  --color-primary-container: #f3f0f7;
+  --color-on-primary-container: #6B3FA0;
   
-  --color-secondary: #10b981;
+  --color-secondary: #0d9488;
   --color-on-secondary: #ffffff;
-  --color-secondary-container: rgba(16, 185, 129, 0.1);
-  --color-on-secondary-container: #34d399;
+  --color-secondary-container: #f0f9f9;
+  --color-on-secondary-container: #0d9488;
   
-  --color-tertiary: #f59e0b;
+  --color-tertiary: #d97706;
   --color-on-tertiary: #ffffff;
   
-  --color-error: #ef4444;
+  --color-error: #dc2626;
   --color-on-error: #ffffff;
-  --color-error-container: rgba(239, 68, 68, 0.1);
-  --color-on-error-container: #f87171;
+  --color-error-container: #fef2f2;
+  --color-on-error-container: #991b1b;
 
-  --color-outline: #262626;
-  --color-outline-variant: #404040;
+  --color-outline: #e5e7eb;
+  --color-outline-variant: #d1d5db;
 }
 
 @layer base {

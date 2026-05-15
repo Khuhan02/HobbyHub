@@ -11,9 +11,27 @@ import { Classes } from './pages/Classes';
 import { Students } from './pages/Students';
 import { Payments } from './pages/Payments';
 import { Messages } from './pages/Messages';
+import { Login } from './pages/Login';
+import { ProfileSetup } from './pages/ProfileSetup';
 
 function AppContent() {
-  const { activeTab } = useApp();
+  const { activeTab, user, profile, loading } = useApp();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
+  if (!profile) {
+    return <ProfileSetup />;
+  }
 
   const renderPage = () => {
     switch (activeTab) {

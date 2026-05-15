@@ -3,25 +3,74 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { TRANSACTIONS } from '../constants';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { useData } from '../hooks/useData';
+import { supabase } from '../lib/supabase';
 
 export function Payments() {
-  const { t } = useApp();
+  const { t, user } = useApp();
+  const { payments: realPayments, loading, refresh } = useData();
+  const [isUpdating, setIsUpdating] = useState<string | null>(null);
+
+  const handleMarkAsPaid = async (paymentId: string) => {
+    if (!user) return;
+    setIsUpdating(paymentId);
+    
+    const { error } = await supabase
+      .from('payments')
+      .update({ 
+        status: 'paid',
+        paid_date: new Date().toISOString().split('T')[0],
+        method: 'transfer' // Defaulting to transfer for now
+       })
+      .eq('id', paymentId);
+
+    if (error) {
+      alert('Error updating payment: ' + error.message);
+    } else {
+      refresh();
+    }
+    setIsUpdating(null);
+  };
+
+  const displayTransactions = realPayments.length > 0 ? realPayments.map(p => ({
+    id: p.id,
+    studentName: (p as any).students?.name || 'Unknown Subject',
+    date: p.paidDate || p.dueDate,
+    method: p.method?.toUpperCase() || 'N/A',
+    amount: `RM${p.amount}`,
+    status: p.status === 'paid' ? 'Paid' : p.status === 'overdue' ? 'Overdue' : 'Pending',
+    rawStatus: p.status
+  })) : TRANSACTIONS.map(tx => ({ ...tx, rawStatus: tx.status.toLowerCase() }));
+
+  const totalRevenue = realPayments
+    .filter(p => p.status === 'paid')
+    .reduce((acc, curr) => acc + curr.amount, 0);
+
+  if (loading) {
+    return (
+      <div className="py-20 flex justify-center">
+        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <div id="payments-page" className="space-y-6 max-w-lg mx-auto">
       <section id="revenue-summary">
-        <div className="bg-neutral-900 border border-neutral-800 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden group">
-          <div className="absolute -right-12 -top-12 w-64 h-64 bg-primary/20 rounded-full blur-[80px] group-hover:bg-primary/30 transition-all"></div>
+        <div className="bg-white border border-neutral-100 rounded-[2.5rem] p-8 shadow-lg relative overflow-hidden group">
+          <div className="absolute -right-12 -top-12 w-64 h-64 bg-primary/5 rounded-full blur-[80px] group-hover:bg-primary/10 transition-all"></div>
           <div className="relative z-10">
-            <p className="text-[10px] font-mono font-black uppercase tracking-[0.3em] text-neutral-500 mb-4">
+            <p className="text-[10px] font-mono font-black uppercase tracking-[0.3em] text-neutral-400 mb-4">
               {t('payments.total_revenue')} • OCT_2023
             </p>
             <div className="flex items-baseline gap-2 mb-6">
-              <span className="text-4xl font-mono font-black text-white tracking-tighter">RM8,400</span>
+              <span className="text-4xl font-mono font-black text-neutral-900 tracking-tighter">
+                RM{totalRevenue > 0 ? totalRevenue : '8,400'}
+              </span>
               <span className="text-xs font-mono font-bold text-secondary">NET_POSITIVE</span>
             </div>
             <div className="flex gap-3">
@@ -35,11 +84,11 @@ export function Payments() {
       </section>
 
       <section id="payment-actions" className="grid grid-cols-2 gap-4">
-        <button className="flex items-center justify-center gap-3 bg-primary text-white py-5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-[0.2em] hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-primary/20">
+        <button className="flex items-center justify-center gap-3 bg-primary text-white py-5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-[0.2em] hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-primary/10">
           <span className="material-symbols-outlined text-xl">broadcast_on_home</span>
           {t('payments.bulk_remind')}
         </button>
-        <button className="flex items-center justify-center gap-3 bg-neutral-900 text-neutral-400 py-5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-[0.2em] hover:bg-neutral-800 active:scale-95 transition-all border border-neutral-800 shadow-xl">
+        <button className="flex items-center justify-center gap-3 bg-white text-neutral-400 py-5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-[0.2em] hover:bg-neutral-50 active:scale-95 transition-all border border-neutral-100 shadow-sm">
           <span className="material-symbols-outlined text-xl">terminal</span>
           {t('payments.export_pdf')}
         </button>
@@ -47,49 +96,60 @@ export function Payments() {
 
       <div id="search-transactions" className="mb-6">
         <div className="relative group">
-          <span className="material-symbols-outlined absolute left-5 top-1/2 -translate-y-1/2 text-neutral-600 group-focus-within:text-primary transition-colors">database</span>
+          <span className="material-symbols-outlined absolute left-5 top-1/2 -translate-y-1/2 text-neutral-300 group-focus-within:text-primary transition-colors">database</span>
           <input 
             type="text" 
             placeholder="Search Registry..."
-            className="w-full pl-14 pr-6 py-5 bg-neutral-950 border border-neutral-800 rounded-[2rem] focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none text-sm font-bold text-on-surface transition-all"
+            className="w-full pl-14 pr-6 py-5 bg-neutral-50 border border-neutral-100 rounded-[2rem] focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none text-sm font-bold text-neutral-700 transition-all shadow-sm"
           />
         </div>
       </div>
 
       <section id="transactions-list">
-        <h3 className="text-[10px] font-mono font-black text-neutral-600 uppercase tracking-[0.3em] mb-6 pl-2">
+        <h3 className="text-[10px] font-mono font-black text-neutral-400 uppercase tracking-[0.3em] mb-6 pl-2">
           {t('payments.recent_transactions')}
         </h3>
         <div className="space-y-4">
-          {TRANSACTIONS.map((tx) => (
+          {displayTransactions.map((tx) => (
             <motion.div 
               key={tx.id}
               initial={{ opacity: 0, y: 10 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              className="bg-neutral-900 border border-neutral-800 rounded-[2rem] p-5 flex justify-between items-center shadow-lg hover:border-primary/40 transition-colors group"
+              className="bg-white border border-neutral-100 rounded-[2rem] p-5 flex justify-between items-center shadow-sm hover:border-primary/40 transition-colors group"
             >
               <div className="flex items-center gap-4">
                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${
-                  tx.status === 'Paid' ? 'bg-secondary/10 border-secondary/20 text-secondary' : 
-                  tx.status === 'Overdue' ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' : 
-                  'bg-neutral-800 border-neutral-700 text-neutral-500'
+                  tx.status === 'Paid' ? 'bg-secondary/5 border-secondary/10 text-secondary' : 
+                  tx.status === 'Overdue' ? 'bg-rose-50 border-rose-100 text-rose-500' : 
+                  'bg-neutral-50 border-neutral-100 text-neutral-300'
                 }`}>
                   <span className="material-symbols-outlined text-xl">fingerprint</span>
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-white italic group-hover:underline underline-offset-4 decoration-primary">{tx.studentName}</p>
-                  <p className="text-[9px] font-mono font-bold text-neutral-600 uppercase tracking-widest mt-1">{tx.date} // {tx.method}</p>
+                  <p className="text-sm font-bold text-neutral-900 italic group-hover:underline underline-offset-4 decoration-primary">{tx.studentName}</p>
+                  <p className="text-[9px] font-mono font-bold text-neutral-400 uppercase tracking-widest mt-1">{tx.date} // {tx.method}</p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-lg font-mono font-black text-white mb-1 tracking-tighter">{tx.amount}</p>
-                <div className={`inline-flex px-2 py-0.5 rounded-md text-[8px] font-mono font-black uppercase tracking-widest border ${
-                  tx.status === 'Paid' ? 'bg-secondary/10 border-secondary/20 text-secondary' : 
-                  tx.status === 'Overdue' ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' : 
-                  'bg-neutral-800 border-neutral-700 text-neutral-500'
-                }`}>
-                  {tx.status}
+                <p className="text-lg font-mono font-black text-neutral-900 mb-1 tracking-tighter">{tx.amount}</p>
+                <div className="flex flex-col items-end gap-2">
+                  <div className={`inline-flex px-2 py-0.5 rounded-md text-[8px] font-mono font-black uppercase tracking-widest border ${
+                    tx.status === 'Paid' ? 'bg-secondary/10 border-secondary/20 text-secondary' : 
+                    tx.status === 'Overdue' ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' : 
+                    'bg-neutral-50 border-neutral-100 text-neutral-300'
+                  }`}>
+                    {tx.status}
+                  </div>
+                  {tx.rawStatus !== 'paid' && (
+                    <button 
+                      onClick={() => handleMarkAsPaid(tx.id)}
+                      disabled={isUpdating === tx.id}
+                      className="text-[9px] font-black text-primary uppercase tracking-widest hover:underline disabled:opacity-50"
+                    >
+                      {isUpdating === tx.id ? 'Updating...' : 'Mark Paid'}
+                    </button>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -97,7 +157,7 @@ export function Payments() {
         </div>
         
         <div className="mt-10 flex justify-center pb-12">
-          <button className="text-[10px] font-black text-neutral-500 hover:text-primary transition-colors uppercase tracking-[0.3em] flex items-center gap-2">
+          <button className="text-[10px] font-black text-neutral-400 hover:text-primary transition-colors uppercase tracking-[0.3em] flex items-center gap-2">
             Show More Records
             <span className="material-symbols-outlined text-sm">expand_more</span>
           </button>

@@ -3,8 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { Language } from '../types';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { Language, UserProfile } from '../types';
+import { supabase } from '../lib/supabase';
+import { User } from '@supabase/supabase-js';
 
 interface AppContextType {
   language: Language;
@@ -12,6 +14,11 @@ interface AppContextType {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   t: (key: string) => string;
+  user: User | null;
+  profile: UserProfile | null;
+  loading: boolean;
+  signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const translations: Record<Language, Record<string, string>> = {
@@ -40,6 +47,11 @@ const translations: Record<Language, Record<string, string>> = {
     'students.next_billing': 'Next Billing',
     'students.milestones': 'Learning Milestones',
     'students.recent_payments': 'Recent Payments',
+    'students.report': 'Progress Report',
+    'students.generating': 'Synthesizing Feedback...',
+    'students.gemini': 'Querying Gemini Neural Engine',
+    'students.copy': 'Copy Text',
+    'students.back': 'Back to Records',
     'payments.total_revenue': 'Total Revenue',
     'payments.collected_month': 'collected this month',
     'payments.vs_last_month': 'vs last month',
@@ -56,6 +68,13 @@ const translations: Record<Language, Record<string, string>> = {
     'chat.send_whatsapp': 'Send to WhatsApp',
     'chat.send_email': 'Send as Email',
     'chat.logs': 'Recent Logs',
+    'auth.login': 'Login with Google',
+    'auth.welcome': 'Welcome to HobbyHub',
+    'auth.setup_profile': 'Complete Your Profile',
+    'auth.business_name': 'Business Name',
+    'auth.business_type': 'Business Type',
+    'auth.city': 'City',
+    'auth.save_profile': 'Save and Continue',
   },
   [Language.BM]: {
     'nav.home': 'Utama',
@@ -82,6 +101,11 @@ const translations: Record<Language, Record<string, string>> = {
     'students.next_billing': 'Bil Seterusnya',
     'students.milestones': 'Pencapaian Pembelajaran',
     'students.recent_payments': 'Pembayaran Terkini',
+    'students.report': 'Laporan Kemajuan',
+    'students.generating': 'Sintesis Maklum Balas...',
+    'students.gemini': 'Enjin Neural Gemini',
+    'students.copy': 'Salin Teks',
+    'students.back': 'Kembali ke Rekod',
     'payments.total_revenue': 'Jumlah Hasil',
     'payments.collected_month': 'dikutip bulan ini',
     'payments.vs_last_month': 'berbanding bulan lepas',
@@ -98,6 +122,13 @@ const translations: Record<Language, Record<string, string>> = {
     'chat.send_whatsapp': 'Hantar ke WhatsApp',
     'chat.send_email': 'Hantar sebagai Emel',
     'chat.logs': 'Log Terkini',
+    'auth.login': 'Log Masuk dengan Google',
+    'auth.welcome': 'Selamat Datang ke HobbyHub',
+    'auth.setup_profile': 'Lengkapkan Profil Anda',
+    'auth.business_name': 'Nama Perniagaan',
+    'auth.business_type': 'Jenis Perniagaan',
+    'auth.city': 'Bandar',
+    'auth.save_profile': 'Simpan dan Teruskan',
   },
 };
 
@@ -106,13 +137,67 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<Language>(Language.EN);
   const [activeTab, setActiveTab] = useState('home');
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchProfile = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (data) {
+      setProfile(data as UserProfile);
+    } else if (error && error.code !== 'PGRST116') {
+      console.error('Error fetching profile:', error);
+    }
+  };
+
+  useEffect(() => {
+    // Check active session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchProfile(session.user.id);
+      }
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchProfile(session.user.id);
+      } else {
+        setProfile(null);
+      }
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+  };
+
+  const refreshProfile = async () => {
+    if (user) {
+      await fetchProfile(user.id);
+    }
+  };
 
   const t = (key: string) => {
     return translations[language][key] || key;
   };
 
   return (
-    <AppContext.Provider value={{ language, setLanguage, activeTab, setActiveTab, t }}>
+    <AppContext.Provider value={{ 
+      language, setLanguage, activeTab, setActiveTab, t, 
+      user, profile, loading, signOut, refreshProfile 
+    }}>
       {children}
     </AppContext.Provider>
   );
